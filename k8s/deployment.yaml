@@ -1,0 +1,112 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gravit-yumi-verifier
+  namespace: gravit-system
+  labels:
+    app: gravit-yumi-verifier
+    component: verifier
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: gravit-yumi-verifier
+  template:
+    metadata:
+      labels:
+        app: gravit-yumi-verifier
+        component: verifier
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: verifier
+        image: gravit/verifier:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        - containerPort: 9090
+          name: metrics
+        env:
+        - name: VERIFIER_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: gravit-yumi-config
+              key: LOG_LEVEL
+        - name: VERIFIER_SEMANTIC_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: gravit-yumi-config
+              key: SEMANTIC_THRESHOLD
+        - name: VERIFIER_ADVERSARIAL_THRESHOLD
+          valueFrom:
+            configMapKeyRef:
+              name: gravit-yumi-config
+              key: ADVERSARIAL_THRESHOLD
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: gravit-yumi-secrets
+              key: REDIS_URL
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: gravit-yumi-secrets
+              key: DATABASE_URL
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+      volumes:
+      - name: model-cache
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gravit-yumi-verifier-hpa
+  namespace: gravit-system
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gravit-yumi-verifier
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

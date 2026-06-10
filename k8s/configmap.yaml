@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gravit-yumi-config
+  namespace: gravit-system
+data:
+  LOG_LEVEL: "info"
+  SEMANTIC_THRESHOLD: "0.75"
+  ADVERSARIAL_THRESHOLD: "0.2"
+  MAX_REASONING_STEPS: "10"
+  PROOF_TTL_HOURS: "720"  # 30 days
+  BENCHMARK_ENABLED: "true"
+  METRICS_ENABLED: "true"
+  CACHE_ENABLED: "true"
+  CACHE_TTL_SECONDS: "300"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gravit-yumi-secrets
+  namespace: gravit-system
+type: Opaque
+stringData:
+  REDIS_URL: "redis://redis.gravit-system:6379/0"
+  DATABASE_URL: "postgresql://gravit:changeme@postgres.gravit-system:5432/verifier"
+  API_KEY: "changeme-production-key"
+  WEBHOOK_SECRET: "changeme-webhook-secret"

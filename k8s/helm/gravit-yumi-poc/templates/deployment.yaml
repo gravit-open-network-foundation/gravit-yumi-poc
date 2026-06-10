@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "gravit-yumi-poc.fullname" . }}
+  labels:
+    {{- include "gravit-yumi-poc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "gravit-yumi-poc.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gravit-yumi-poc.selectorLabels" . | nindent 8 }}
+      annotations:
+        prometheus.io/scrape: "{{ .Values.monitoring.prometheus.enabled }}"
+        prometheus.io/port: "{{ .Values.service.metricsPort }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.port }}
+          name: http
+        - containerPort: {{ .Values.service.metricsPort }}
+          name: metrics
+        env:
+        - name: VERIFIER_LOG_LEVEL
+          value: {{ .Values.config.logLevel | quote }}
+        - name: VERIFIER_SEMANTIC_THRESHOLD
+          value: {{ .Values.config.semanticThreshold | quote }}
+        - name: VERIFIER_ADVERSARIAL_THRESHOLD
+          value: {{ .Values.config.adversarialThreshold | quote }}
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "gravit-yumi-poc.fullname" . }}-secrets
+              key: redisUrl
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "gravit-yumi-poc.fullname" . }}-secrets
+              key: databaseUrl
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "gravit-yumi-poc.fullname" . }}-secrets
+              key: apiKey
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.livenessProbe.path }}
+            port: {{ .Values.service.port }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.readinessProbe.path }}
+            port: {{ .Values.service.port }}
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}

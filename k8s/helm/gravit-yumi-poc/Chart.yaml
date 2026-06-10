@@ -1,0 +1,22 @@
+apiVersion: v2
+name: gravit-yumi-poc
+description: Gravit Epistemic Verifier Helm chart for Yumi Finance POC
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - gravit
+  - epistemic-verification
+  - yumi
+  - ai-agent
+  - verification
+maintainers:
+  - name: Gravit Open Network Foundation
+    email: info@gravit.network
+    url: https://gravit.network
+home: https://github.com/GravitOpenNetwork/gravit-epistemic-verifier
+sources:
+  - https://github.com/GravitOpenNetwork/gravit-epistemic-verifier
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/operator: "false"

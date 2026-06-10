@@ -1,0 +1,86 @@
+# Default values for gravit-yumi-poc
+replicaCount: 3
+
+image:
+  repository: gravit/verifier
+  tag: latest
+  pullPolicy: Always
+
+nameOverride: ""
+fullnameOverride: ""
+
+config:
+  logLevel: "info"
+  semanticThreshold: 0.75
+  adversarialThreshold: 0.2
+  maxReasoningSteps: 10
+  proofTTLHours: 720
+  benchmarkEnabled: true
+  metricsEnabled: true
+  cacheEnabled: true
+  cacheTTLSeconds: 300
+
+secrets:
+  redisUrl: "redis://redis:6379/0"
+  databaseUrl: "postgresql://gravit:changeme@postgres:5432/verifier"
+  apiKey: "change-me-in-production"
+
+service:
+  type: ClusterIP
+  port: 8080
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: verifier.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  path: /health
+
+readinessProbe:
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  path: /ready
+
+persistence:
+  enabled: false
+  size: 10Gi
+  storageClass: ""
+
+monitoring:
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  grafana:
+    enabled: false
+    dashboard: ""
+
+yumi:
+  enabled: true
+  apiEndpoint: "https://api.yumi.finance/v1"
+  webhookEnabled: true
