@@ -3,7 +3,6 @@ version: '3.8'
 services:
   verifier:
     image: ${REGISTRY:-gravit}/verifier:${VERSION:-latest}
-    container_name: gravit-verifier-prod
     ports:
       - "8080:8080"
       - "9090:9090"
@@ -11,105 +10,9 @@ services:
       - VERIFIER_LOG_LEVEL=info
       - VERIFIER_SEMANTIC_THRESHOLD=0.75
       - VERIFIER_ADVERSARIAL_THRESHOLD=0.2
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://gravit:${DB_PASSWORD}@postgres:5432/verifier
-    depends_on:
-      - redis
-      - postgres
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
       retries: 3
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-      replicas: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  redis:
-    image: redis:7-alpine
-    container_name: gravit-redis-prod
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 1G
-
-  postgres:
-    image: postgres:15-alpine
-    container_name: gravit-postgres-prod
-    environment:
-      - POSTGRES_USER=gravit
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=verifier
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 2G
-
-  nginx:
-    image: nginx:alpine
-    container_name: gravit-nginx-prod
-    ports:
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - verifier
-    restart: unless-stopped
-
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: gravit-prometheus-prod
-    ports:
-      - "9091:9090"
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=90d'
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:latest
-    container_name: gravit-grafana-prod
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
-    restart: unless-stopped
-
-volumes:
-  redis-data:
-  postgres-data:
-  prometheus-data:
-  grafana-data:
-
-networks:
-  default:
-    name: gravit-network
-    driver: bridge

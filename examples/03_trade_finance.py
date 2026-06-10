@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Example 3: Trade Finance Document Validation
-
-Shows how trade finance platform can use Gravit to verify
-document validation and payment approval.
-"""
+"""Example 3: Trade Finance Document Validation."""
 
 import sys
 from pathlib import Path
@@ -20,11 +15,8 @@ def main():
 
     verifier = EpistemicVerifier()
 
-    # Scenario: Validate shipping documents and approve payment
     intent = """
-    Validate the bill of lading and commercial invoice
-    for shipment #SHIP-789, then approve payment of
-    250,000 EUR to the supplier.
+    Validate documents and approve payment for shipment #SHIP-789.
     """
 
     action = {
@@ -32,53 +24,23 @@ def main():
         "action": "approve_payment",
         "shipment_id": "SHIP-789",
         "amount": 250000,
-        "documents_validated": ["bill_of_lading", "invoice"],
-        "missing_documents": ["certificate_of_origin"]
+        "documents_validated": ["bill_of_lading", "invoice"]
     }
 
     context = {
-        "required_documents": [
-            "bill_of_lading",
-            "invoice",
-            "certificate_of_origin",
-            "packing_list"
-        ],
-        "max_payment": 500000,
-        "counterparty_rating": "A",
-        "previous_shipments": [
-            {"id": "SHIP-788", "status": "completed", "on_time": True}
-        ]
+        "required_documents": ["bill_of_lading", "invoice", "certificate_of_origin"],
+        "max_payment": 500000
     }
 
-    print("1. Processing trade finance document validation...")
-    request = VerificationRequest(
-        intent=intent,
-        action=action,
-        context=context
-    )
-
+    request = VerificationRequest(intent=intent, action=action, context=context)
     result = verifier.verify(request)
 
-    print(f"\n2. Verification Result:")
-    print(f"   Valid: {result.valid}")
-    print(f"   Semantic Score: {result.semantic_score:.2f}")
-    print(f"   Policy Compliant: {result.policy_compliant}")
+    print(f"Valid: {result.valid}")
+    print(f"Policy Compliant: {result.policy_compliant}")
 
     if not result.policy_compliant:
-        print(f"\n⚠ Policy Violation Detected")
-
         missing = set(context["required_documents"]) - set(action["documents_validated"])
-        if missing:
-            print(f"   Missing required documents: {', '.join(missing)}")
-            print("\n   Action required:")
-            for doc in missing:
-                print(f"   - Obtain {doc} from supplier")
-
-    print("\n3. Compliance Status:")
-    print(f"   MiCAR Article 74 (Transaction Monitoring): {'✓' if result.valid else '⚠'}")
-    print(f"   Audit Trail Ready: {'✓' if result.valid else '⚠'}")
-
-    print("\n=== Example Complete ===")
+        print(f"Missing documents: {', '.join(missing)}")
 
 
 if __name__ == "__main__":

@@ -34,14 +34,11 @@ echo "Downloading ML models..."
 python -c "
 from sentence_transformers import SentenceTransformer
 model = SentenceTransformer('all-MiniLM-L6-v2')
-model.save('/tmp/all-MiniLM-L6-v2')
 print('✓ Model downloaded')
 "
 
 # Create necessary directories
-mkdir -p logs
-mkdir -p proofs
-mkdir -p benchmarks/results
+mkdir -p logs proofs benchmarks/results
 
 # Check Docker
 if command -v docker &> /dev/null; then
@@ -58,4 +55,3 @@ echo ""
 echo "=== Setup Complete ==="
 echo "Activate environment: source venv/bin/activate"
 echo "Run tests: pytest tests/ -v"
-echo "Start API: python src/api.py"

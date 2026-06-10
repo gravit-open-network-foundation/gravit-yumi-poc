@@ -22,9 +22,6 @@ kind: Service
 metadata:
   name: gravit-yumi-verifier-lb
   namespace: gravit-system
-  labels:
-    app: gravit-yumi-verifier
-    type: loadbalancer
 spec:
   selector:
     app: gravit-yumi-verifier

@@ -12,8 +12,6 @@ data:
   PROOF_TTL_HOURS: {{ .Values.config.proofTTLHours | quote }}
   BENCHMARK_ENABLED: {{ .Values.config.benchmarkEnabled | quote }}
   METRICS_ENABLED: {{ .Values.config.metricsEnabled | quote }}
-  CACHE_ENABLED: {{ .Values.config.cacheEnabled | quote }}
-  CACHE_TTL_SECONDS: {{ .Values.config.cacheTTLSeconds | quote }}
 ---
 apiVersion: v1
 kind: Secret

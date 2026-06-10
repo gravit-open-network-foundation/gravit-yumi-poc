@@ -1,13 +1,9 @@
-# Default values for gravit-yumi-poc
 replicaCount: 3
 
 image:
   repository: gravit/verifier
   tag: latest
   pullPolicy: Always
-
-nameOverride: ""
-fullnameOverride: ""
 
 config:
   logLevel: "info"
@@ -17,8 +13,6 @@ config:
   proofTTLHours: 720
   benchmarkEnabled: true
   metricsEnabled: true
-  cacheEnabled: true
-  cacheTTLSeconds: 300
 
 secrets:
   redisUrl: "redis://redis:6379/0"
@@ -29,16 +23,6 @@ service:
   type: ClusterIP
   port: 8080
   metricsPort: 9090
-
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: verifier.local
-      paths:
-        - path: /
-          pathType: Prefix
 
 resources:
   requests:
@@ -53,22 +37,6 @@ autoscaling:
   minReplicas: 3
   maxReplicas: 10
   targetCPUUtilizationPercentage: 70
-  targetMemoryUtilizationPercentage: 80
-
-livenessProbe:
-  initialDelaySeconds: 30
-  periodSeconds: 10
-  path: /health
-
-readinessProbe:
-  initialDelaySeconds: 5
-  periodSeconds: 5
-  path: /ready
-
-persistence:
-  enabled: false
-  size: 10Gi
-  storageClass: ""
 
 monitoring:
   prometheus:
@@ -76,11 +44,3 @@ monitoring:
     serviceMonitor:
       enabled: true
       interval: 30s
-  grafana:
-    enabled: false
-    dashboard: ""
-
-yumi:
-  enabled: true
-  apiEndpoint: "https://api.yumi.finance/v1"
-  webhookEnabled: true

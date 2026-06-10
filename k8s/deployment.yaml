@@ -6,7 +6,6 @@ metadata:
   labels:
     app: gravit-yumi-verifier
     component: verifier
-    tier: backend
 spec:
   replicas: 3
   selector:
@@ -16,16 +15,13 @@ spec:
     metadata:
       labels:
         app: gravit-yumi-verifier
-        component: verifier
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
-        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: verifier
         image: gravit/verifier:latest
-        imagePullPolicy: Always
         ports:
         - containerPort: 8080
           name: http
@@ -37,26 +33,6 @@ spec:
             configMapKeyRef:
               name: gravit-yumi-config
               key: LOG_LEVEL
-        - name: VERIFIER_SEMANTIC_THRESHOLD
-          valueFrom:
-            configMapKeyRef:
-              name: gravit-yumi-config
-              key: SEMANTIC_THRESHOLD
-        - name: VERIFIER_ADVERSARIAL_THRESHOLD
-          valueFrom:
-            configMapKeyRef:
-              name: gravit-yumi-config
-              key: ADVERSARIAL_THRESHOLD
-        - name: REDIS_URL
-          valueFrom:
-            secretKeyRef:
-              name: gravit-yumi-secrets
-              key: REDIS_URL
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: gravit-yumi-secrets
-              key: DATABASE_URL
         resources:
           requests:
             memory: "512Mi"
@@ -69,21 +45,11 @@ spec:
             path: /health
             port: 8080
           initialDelaySeconds: 30
-          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /ready
             port: 8080
           initialDelaySeconds: 5
-          periodSeconds: 5
-        volumeMounts:
-        - name: model-cache
-          mountPath: /app/models
-      volumes:
-      - name: model-cache
-        emptyDir: {}
-      - name: tmp
-        emptyDir: {}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -104,9 +70,3 @@ spec:
       target:
         type: Utilization
         averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80

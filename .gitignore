@@ -1,46 +1,13 @@
-# Python
-__pycache__/
-*.py[cod]
-*.so
-.Python
-.env
-.venv/
 venv/
-pip-log.txt
-pip-delete-this-directory.txt
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Environment
-.env.local
-.env.production
-
-# Logs
-*.log
+__pycache__/
+*.pyc
+.env
 logs/
-
-# Docker
-*.pid
-docker-compose.override.yml
-
-# Kubernetes
-*.secret.yaml
-
-# OS
+proofs/*.json
+benchmarks/results/
 .DS_Store
-Thumbs.db
-
-# Test artifacts
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Audit proofs
-audit_proof_*.json
+*.log
+*.pid
 
 #Structure
 STRUCTURE.md
