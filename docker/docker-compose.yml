@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  gravit-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: gravit-yumi-api
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LLM_PROVIDER=${LLM_PROVIDER:-mock}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GROK_API_KEY=${GROK_API_KEY:-}
+      - GRAVIT_API_KEY=${GRAVIT_API_KEY:-}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+    volumes:
+      - ./src:/app/src
+      - ./examples:/app/examples
+      - audit_data:/app/audit_logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - gravit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: gravit-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis123} --appendonly yes
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks:
+      - gravit-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis123}", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: gravit-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - gravit-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: gravit-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - gravit-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+  audit_data:
+
+networks:
+  gravit-network:
+    driver: bridge

@@ -1,115 +1,164 @@
-"""Audit proof generation and validation (ERC-8004-GT)."""
+#!/usr/bin/env python3
+"""
+Audit Proof generation and verification with real cryptographic signatures
+"""
 
 import json
 import hashlib
-import time
-import uuid
-from typing import Dict, Any, Optional, List
+import hmac
+import os
+from datetime import datetime
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, asdict
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import serialization
+from cryptography.exceptions import InvalidSignature
 
-from .models import VerificationRequest, VerificationResult
 
+@dataclass
+class AuditProof:
+    """Cryptographic audit trail with real signatures"""
+    trace_id: str
+    timestamp: datetime
+    decision: str
+    trust_score: int
+    confidence: float
+    reasoning_chain: List[str]
+    model_agreement: Dict[str, float]
+    signature: Optional[str] = None
+    public_key_pem: Optional[str] = None
 
-class AuditProofGenerator:
-    """Generate ERC-8004-GT audit proofs."""
+    def to_json(self) -> str:
+        data = asdict(self)
+        data["timestamp"] = self.timestamp.isoformat()
+        return json.dumps(data, indent=2)
 
-    def __init__(self, verifier_id: str = "gravit-verifier-v1"):
-        self.verifier_id = verifier_id
-
-    def generate(
-        self,
-        request: VerificationRequest,
-        result: VerificationResult,
-        agent_id: str,
-        reasoning_chain: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        intent_hash = self._compute_hash(request.intent, "intent")
-        action_hash = self._compute_hash(json.dumps(request.action), "action")
-        context_hash = self._compute_hash(json.dumps(request.context), "context")
-
-        verification_result = {
-            "semantic_score": result.semantic_score,
-            "semantic_valid": result.semantic_score >= 0.75,
-            "policy_compliant": result.policy_compliant,
-            "adversarial_risk": result.adversarial_risk,
-            "overall_valid": result.valid,
-            "trace_id": result.trace_id
-        }
-
-        lineage_commitment = None
-        if reasoning_chain:
-            lineage_commitment = self._build_lineage_commitment(reasoning_chain)
-
+    def to_dict(self) -> Dict:
         return {
-            "proof_id": str(uuid.uuid4()),
-            "timestamp": int(time.time() * 1000),
-            "agent_id": agent_id,
-            "verifier_id": self.verifier_id,
-            "intent_hash": intent_hash,
-            "action_hash": action_hash,
-            "context_hash": context_hash,
-            "verification_result": verification_result,
-            "lineage_commitment": lineage_commitment,
-            "signatures": []
+            "trace_id": self.trace_id,
+            "timestamp": self.timestamp.isoformat(),
+            "decision": self.decision,
+            "trust_score": self.trust_score,
+            "confidence": self.confidence,
+            "signature": self.signature[:32] + "..." if self.signature else None
         }
 
-    def _compute_hash(self, data: str, field: str) -> str:
-        if not data:
-            data = ""
-        return hashlib.sha256(f"{field}:{data}".encode()).hexdigest()
-
-    def _build_lineage_commitment(self, reasoning_chain: List[str]) -> Dict[str, str]:
-        if not reasoning_chain:
-            return {"merkle_root": "", "num_steps": 0}
-
-        leaves = [hashlib.sha256(step.encode()).hexdigest() for step in reasoning_chain]
-        tree = leaves
-        while len(tree) > 1:
-            next_level = []
-            for i in range(0, len(tree), 2):
-                if i + 1 < len(tree):
-                    combined = tree[i] + tree[i + 1]
-                else:
-                    combined = tree[i] + tree[i]
-                next_level.append(hashlib.sha256(combined.encode()).hexdigest())
-            tree = next_level
-
-        return {
-            "merkle_root": tree[0] if tree else "",
-            "num_steps": len(reasoning_chain),
-            "first_step_hash": leaves[0] if leaves else "",
-            "last_step_hash": leaves[-1] if leaves else ""
+    def compute_hash(self) -> bytes:
+        """Compute hash of proof data for signing"""
+        data = {
+            "trace_id": self.trace_id,
+            "timestamp": self.timestamp.isoformat(),
+            "decision": self.decision,
+            "trust_score": self.trust_score,
+            "reasoning_chain": self.reasoning_chain[:5]  # Limit for hash
         }
+        return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).digest()
 
+    def sign(self, private_key_pem: str) -> str:
+        """Sign the proof with EC private key"""
+        try:
+            private_key = serialization.load_pem_private_key(
+                private_key_pem.encode(),
+                password=None
+            )
+            signature = private_key.sign(
+                self.compute_hash(),
+                ec.ECDSA(hashes.SHA256())
+            )
+            self.signature = signature.hex()
 
-class AuditProofValidator:
-    """Validate ERC-8004-GT audit proofs."""
+            # Store public key
+            public_key = private_key.public_key()
+            self.public_key_pem = public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode()
 
-    def __init__(self):
-        self.required_fields = [
-            "proof_id", "timestamp", "agent_id", "verifier_id",
-            "intent_hash", "action_hash", "context_hash",
-            "verification_result", "signatures"
-        ]
+            return self.signature
+        except Exception as e:
+            raise RuntimeError(f"Failed to sign proof: {e}")
 
-    def validate(self, proof: Dict[str, Any]) -> bool:
-        for field in self.required_fields:
-            if field not in proof:
-                return False
-
-        current_ms = int(time.time() * 1000)
-        if proof["timestamp"] > current_ms + 60000:
+    def verify(self) -> bool:
+        """Verify the signature"""
+        if not self.signature or not self.public_key_pem:
             return False
-        if proof["timestamp"] < current_ms - (30 * 24 * 3600 * 1000):
+
+        try:
+            public_key = serialization.load_pem_public_key(
+                self.public_key_pem.encode()
+            )
+            signature_bytes = bytes.fromhex(self.signature)
+            public_key.verify(
+                signature_bytes,
+                self.compute_hash(),
+                ec.ECDSA(hashes.SHA256())
+            )
+            return True
+        except (InvalidSignature, Exception):
             return False
 
-        vr = proof["verification_result"]
-        if not (0 <= vr["semantic_score"] <= 1):
-            return False
-        if not (0 <= vr["adversarial_risk"] <= 1):
-            return False
 
-        if not proof["signatures"]:
-            return False
+class AuditStorage:
+    """Persistent storage for audit proofs"""
 
-        return True
+    def __init__(self, storage_path: str = "./audit_logs", use_redis: bool = False, redis_url: str = None):
+        self.storage_path = storage_path
+        self.use_redis = use_redis
+        self.redis_client = None
+
+        # Create storage directory
+        os.makedirs(storage_path, exist_ok=True)
+
+    async def initialize(self):
+        """Initialize Redis connection if enabled"""
+        if self.use_redis:
+            try:
+                import redis.asyncio as redis
+                self.redis_client = await redis.from_url(redis_url)
+                await self.redis_client.ping()
+                print("Redis connected for audit storage")
+            except Exception as e:
+                print(f"Redis connection failed, falling back to filesystem: {e}")
+                self.use_redis = False
+
+    async def store(self, proof: AuditProof):
+        """Store audit proof"""
+        proof_json = proof.to_json()
+
+        if self.redis_client:
+            await self.redis_client.setex(
+                f"audit:{proof.trace_id}",
+                86400 * 90,  # 90 days retention
+                proof_json
+            )
+
+        # Always store to filesystem as backup
+        filepath = os.path.join(self.storage_path, f"{proof.trace_id}.json")
+        with open(filepath, "w") as f:
+            f.write(proof_json)
+
+    async def get(self, trace_id: str) -> Optional[AuditProof]:
+        """Retrieve audit proof by trace_id"""
+        proof_json = None
+
+        if self.redis_client:
+            proof_json = await self.redis_client.get(f"audit:{trace_id}")
+
+        if not proof_json:
+            filepath = os.path.join(self.storage_path, f"{trace_id}.json")
+            if os.path.exists(filepath):
+                with open(filepath, "r") as f:
+                    proof_json = f.read()
+
+        if proof_json:
+            data = json.loads(proof_json)
+            data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+            return AuditProof(**data)
+
+        return None
+
+    async def close(self):
+        """Close Redis connection"""
+        if self.redis_client:
+            await self.redis_client.close()
