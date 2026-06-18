@@ -8,6 +8,8 @@ benchmarks/results/
 .DS_Store
 *.log
 *.pid
+.venv
+audit_logs/
 
 #Structure
 STRUCTURE.md

@@ -105,6 +105,7 @@ class AuditStorage:
     def __init__(self, storage_path: str = "./audit_logs", use_redis: bool = False, redis_url: str = None):
         self.storage_path = storage_path
         self.use_redis = use_redis
+        self.redis_url = redis_url
         self.redis_client = None
 
         # Create storage directory
@@ -115,7 +116,7 @@ class AuditStorage:
         if self.use_redis:
             try:
                 import redis.asyncio as redis
-                self.redis_client = await redis.from_url(redis_url)
+                self.redis_client = await redis.from_url(self.redis_url)
                 await self.redis_client.ping()
                 print("Redis connected for audit storage")
             except Exception as e:
@@ -162,3 +163,49 @@ class AuditStorage:
         """Close Redis connection"""
         if self.redis_client:
             await self.redis_client.close()
+
+
+class AuditProofGenerator:
+    """Generate deterministic audit proofs for verification results."""
+
+    def _compute_hash(self, value: str, namespace: str) -> str:
+        payload = f"{namespace}:{value}".encode()
+        return hashlib.sha256(payload).hexdigest()
+
+    def generate(self, request, result, agent_id: str) -> Dict[str, Any]:
+        request_payload = getattr(request, "__dict__", request)
+        proof = {
+            "proof_id": self._compute_hash(f"{agent_id}:{request_payload.get('intent', '')}", "proof")[:24],
+            "timestamp": int(datetime.utcnow().timestamp()),
+            "agent_id": agent_id,
+            "intent_hash": self._compute_hash(request_payload.get("intent", ""), "intent"),
+            "action_hash": self._compute_hash(json.dumps(request_payload.get("action", {}), sort_keys=True), "action"),
+            "context_hash": self._compute_hash(json.dumps(request_payload.get("context", {}), sort_keys=True), "context"),
+            "verification_result": {
+                "valid": result.valid,
+                "semantic_score": result.semantic_score,
+                "policy_compliant": result.policy_compliant,
+                "adversarial_risk": result.adversarial_risk,
+                "trace_id": result.trace_id,
+            },
+            "signatures": [],
+        }
+        return proof
+
+
+class AuditProofValidator:
+    """Validate that a proof has not been tampered with after signing."""
+
+    def validate(self, proof: Dict[str, Any]) -> bool:
+        signatures = proof.get("signatures", [])
+        if not signatures:
+            return False
+
+        canonical = {k: v for k, v in proof.items() if k != "signatures"}
+        signed_message = json.dumps(canonical)
+
+        for signature in signatures:
+            if signature.get("signed_message") == signed_message:
+                return True
+
+        return False

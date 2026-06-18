@@ -11,6 +11,7 @@ git clone https://github.com/GravitOpenNetwork/gravit-yumi-poc
 cd gravit-yumi-poc
 chmod +x scripts/*.sh
 ./scripts/setup.sh
+source venv/bin/activate
 ```
 
 ## Run Examples
@@ -24,7 +25,8 @@ python examples/03_trade_finance.py
 ## Run Tests
 
 ```bash
-pytest tests/ -v
+. venv/bin/activate
+pytest tests -q
 ```
 
 ## Deploy

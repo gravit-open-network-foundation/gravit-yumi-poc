@@ -4,6 +4,7 @@ FastAPI server for Gravit Epistemic Verifier
 Provides a REST API for AI agent verification
 """
 
+import json
 import os
 import time
 import logging
@@ -201,13 +202,22 @@ async def verify(request: VerificationRequest, request_obj: Request):
 
         latency_ms = int((time.time() - start_time) * 1000)
 
+        audit_proof = None
+        if result.proof:
+            audit_proof = json.dumps(result.proof, indent=2)
+
         return VerificationResponse(
-            status=result.get("status", "error"),
-            decision=result.get("decision", "denied"),
-            score=result.get("score", 0.0),
-            checks=result.get("checks", {}),
-            trace_id=result.get("trace_id", ""),
-            audit_proof=result.get("audit_proof"),
+            status="passed" if result.valid else "failed",
+            decision="allowed" if result.valid else "denied",
+            score=result.semantic_score,
+            checks={
+                "semantic_compliance": result.semantic_score >= settings.semantic_threshold,
+                "policy_compliance": result.policy_compliant,
+                "adversarial_risk": result.adversarial_risk > 0.5,
+                "reasoning_lineage": result.lineage_valid,
+            },
+            trace_id=result.trace_id,
+            audit_proof=audit_proof,
             latency_ms=latency_ms
         )
 
